@@ -88,28 +88,36 @@ git add docs/spike-notes.md && git commit -m "chore: install Lima, record versio
 
 ---
 
-## Task 2: Spike a NixOS guest booting under Lima
+## Task 2: Spike a NixOS guest booting under Lima (via nixos-lima)
 
-**Files:** none yet (using Lima's stock template to de-risk before writing our own config).
+**Files:** none yet (using the nixos-lima prebuilt image to de-risk before writing our own config).
 
-- [ ] **Step 1: Start the stock NixOS template**
+Lima ships no built-in NixOS template, so we use the `nixos-lima` community flake's
+prebuilt image. The custom-flake mode builds a Linux image and cannot run on the
+Darwin host, so we boot the prebuilt image now and apply our pinned config from inside
+the guest later (Tasks 6 and 7).
+
+- [ ] **Step 1: Start the nixos-lima prebuilt guest**
 
 Run:
 ```bash
-limactl start --name=workshop-spike --tty=false template://nixos
+limactl start --name=nixos --memory 8 --tty=false github:nixos-lima
 ```
-Expected: Lima downloads/boots an aarch64 NixOS guest and reports it as Running. This can take several minutes on first run.
+Expected: Lima downloads the prebuilt aarch64 NixOS image and reports the instance as
+Running. The image download can take several minutes on first run. (Instance name is
+`nixos`, matching nixos-lima's docs.)
 
-If the `template://nixos` name fails, list available templates with `limactl start --list-templates` and use the exact NixOS template name shown; record it.
+If the `github:nixos-lima` reference fails, fall back to fetching the raw `nixos.yaml`
+from the repo and passing it as a local file; record the working invocation.
 
 - [ ] **Step 2: Verify shell access into the guest**
 
-Run: `limactl shell workshop-spike uname -a`
+Run: `limactl shell nixos uname -a`
 Expected: a `Linux ... aarch64 ... GNU/Linux` line.
 
 - [ ] **Step 3: Record what booted**
 
-Append to `docs/spike-notes.md`: the exact template name used, the guest kernel version (`limactl shell workshop-spike uname -r`), and whether boot needed any flags.
+Append to `docs/spike-notes.md`: the nixos-lima ref used, the guest kernel version (`limactl shell nixos uname -r`), the NixOS version, and whether boot needed any flags.
 
 ```bash
 git add docs/spike-notes.md && git commit -m "spike: confirm NixOS guest boots under Lima on aarch64"
