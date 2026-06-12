@@ -65,3 +65,32 @@ grounded in reality rather than guesses. Append findings under each task.
     (rustup-style), which does not exist in a Nix shell. Must verify during the first
     in-guest build (Task 8) and, if so, provide nightly as the default toolchain or
     point aya-build at it explicitly.
+
+### Task 5/8: flake build + END-TO-END PROVEN
+- Flake: rust-overlay `selectLatestNightlyWith` -> rustc 1.98.0-nightly (2026-06-12),
+  LLVM **22.1.6**. extensions: rust-src (needed for `-Z build-std=core`), rustfmt, clippy.
+- LLVM MISMATCH (resolved): nixpkgs default `bpf-linker` 0.10.3 links libLLVM **21**,
+  but the nightly emits LLVM 22 bitcode -> `ERROR llvm: Invalid record` at link.
+  FIX: `pkgs.bpf-linker.override { llvmPackagesForLinker = pkgs.llvmPackages_22; }`
+  (override arg is `llvmPackagesForLinker`, NOT `llvmPackages`; defaults to
+  `rustc.llvmPackages` = 21). Confirmed bpf-linker then links libLLVM.so.22.1.
+  RULE: keep bpf-linker's LLVM major == nightly's LLVM major. If a future nightly
+  bumps to LLVM 23, bump llvmPackages_23 (must exist in the pinned nixpkgs).
+- aya-build `+nightly` RISK RESOLVED: build logs `which(rustup)=cannot find binary
+  path; proceeding with current toolchain`. aya-build falls back to the current Nix
+  nightly. No rustup needed.
+- Cargo.lock: read-only virtiofs mount can't hold it. Generated on host with
+  `cargo generate-lockfile` and committed (also satisfies frozen-deps invariant).
+  Build with `cargo build --locked`. For the REAL guest, workshop.yaml mounts the repo
+  writable, so this is a spike-only workaround.
+- Build invocation (spike): repo mounted RO at /Users/artogahr/workplace/ebpf-firewall-rs;
+  `CARGO_TARGET_DIR=/tmp/lima/fw-target` (writable) +
+  `nix develop .#guest --command cargo build --locked`. limactl shell mirrors host cwd
+  into the guest, so `.#guest` resolves without an explicit cd.
+- LOADED + RAN: `sudo RUST_LOG=info /tmp/lima/fw-target/debug/firewall` attached to
+  `sys_enter_execve` and logged `[INFO firewall] tracepoint sys_enter_execve called`
+  on every execve. FULL STACK PROVEN on Apple Silicon.
+- LOGGING MECHANISM: aya-template scaffold uses **aya-log** (logs surface in the
+  loader's stdout via `RUST_LOG`, through a perf/ringbuf map), NOT the kernel
+  `bpf_printk` -> `/sys/kernel/tracing/trace_pipe`. Step 0 framing decision pending
+  with user (aya-log vs trace_pipe).
