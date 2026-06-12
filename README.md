@@ -24,6 +24,7 @@ repo; everything else, including the VM runner, comes from the flake.
    image is a few GB). Run these from the repo directory:
    ```bash
    git clone https://github.com/artogahr/ebpf-firewall-rs.git && cd ebpf-firewall-rs
+   nix develop          # host toolchain; launch your editor from here for autocomplete
    nix run .#start      # boots the pinned Linux guest (provides Lima for you)
    nix run .#enter      # opens a shell inside the guest
    ```
@@ -47,45 +48,6 @@ directory, so your edits show up inside the guest instantly. The loop is:
 
 So: edit on your laptop, `cargo run` in the guest, watch the trace pipe. Note: clone the
 repo somewhere under your home directory so the guest's mount can see it.
-
-## Editor autocomplete on your laptop (optional)
-
-You can't *build* this project on macOS (the eBPF toolchain is Linux-only), but you can
-still get rust-analyzer language features on your host. `nix develop` already gives the
-right toolchain per platform (editing tools on macOS, the full build toolchain on Linux),
-so your editor just needs to see it on `PATH`. Two ways:
-
-**A. Launch your editor from the shell** (simplest; quit it first so it doesn't reattach
-with the old environment):
-```bash
-cd <repo>
-nix develop          # rust + rust-src + rust-analyzer (instant on macOS, no bpf-linker)
-zed .                # or: code .  /  nvim  /  $EDITOR
-```
-
-**B. direnv (automatic).** A committed `.envrc` loads the toolchain whenever you enter the
-repo: `nix profile install nixpkgs#direnv nixpkgs#nix-direnv`, hook it into your shell,
-then `direnv allow`. (A GUI editor opened from the dock has a minimal `PATH` and may not
-find `direnv`; launching from a terminal avoids that.)
-
-With the toolchain on PATH:
-
-- **Completion, hover, go-to-definition** work immediately (rust-analyzer indexes the
-  project with `cargo metadata`, which runs fine on any OS).
-- **Full type-checking** needs a cross-compile target, because the eBPF crate targets
-  `bpfel` and the loader targets Linux. Set these rust-analyzer options (the keys are the
-  same in every editor; set them however your editor configures rust-analyzer):
-  - For `firewall-ebpf` (the eBPF program, what you edit most):
-    `cargo.target = "bpfel-unknown-none"`, `cargo.extraArgs = ["-Zbuild-std=core"]`
-  - For `firewall` (the loader): `cargo.target = "aarch64-unknown-linux-gnu"` (or
-    `x86_64-unknown-linux-gnu`), `cargo.extraArgs = ["-Zbuild-std"]`,
-    `cargo.extraEnv = { "AYA_BUILD_SKIP": "1" }`
-  You can fully check one crate at a time, not both at once: that's an aya dual-target
-  quirk, not specific to macOS.
-
-Prefer your editor's full remote experience? Point its remote-development feature at the
-guest over SSH (Lima writes `~/.lima/workshop/ssh.config`, host `lima-workshop`);
-rust-analyzer is in the guest, and the loader then checks with no target config.
 
 ## The workshop, step by step
 
