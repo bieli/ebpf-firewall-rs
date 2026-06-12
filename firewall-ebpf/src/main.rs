@@ -1,20 +1,17 @@
 #![no_std]
 #![no_main]
 
-use aya_ebpf::{macros::tracepoint, programs::TracePointContext};
+use aya_ebpf::{helpers::bpf_printk, macros::tracepoint, programs::TracePointContext};
 use aya_log_ebpf::info;
 
 #[tracepoint]
 pub fn firewall(ctx: TracePointContext) -> u32 {
-    match try_firewall(ctx) {
-        Ok(ret) => ret,
-        Err(ret) => ret,
-    }
-}
-
-fn try_firewall(ctx: TracePointContext) -> Result<u32, u32> {
-    info!(&ctx, "tracepoint sys_enter_execve called");
-    Ok(0)
+    // aya-log: shows up in the loader's stdout (RUST_LOG=info).
+    info!(&ctx, "execve called");
+    // bpf_printk: the classic kernel primitive, seen via
+    // `sudo cat /sys/kernel/tracing/trace_pipe`.
+    unsafe { bpf_printk!(c"hello from eBPF: execve called") };
+    0
 }
 
 #[cfg(not(test))]
