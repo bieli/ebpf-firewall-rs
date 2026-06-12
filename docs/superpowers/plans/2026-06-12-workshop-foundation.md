@@ -266,9 +266,36 @@ Create `flake.nix`:
         devShells.default = guestShell;
         devShells.host = hostShell;
         devShells.guest = guestShell;
+
+        # VM lifecycle as flake apps, so the host commands are pure Nix:
+        #   nix run .#start    boot the guest
+        #   nix run .#enter    shell into the guest
+        #   nix run .#stop     stop the guest
+        # `limactl start ./workshop.yaml` names the instance "workshop".
+        apps.start = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "start" ''
+            exec ${pkgs.lima}/bin/limactl start ./workshop.yaml "$@"
+          '');
+        };
+        apps.enter = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "enter" ''
+            exec ${pkgs.lima}/bin/limactl shell workshop "$@"
+          '');
+        };
+        apps.stop = {
+          type = "app";
+          program = toString (pkgs.writeShellScript "stop" ''
+            exec ${pkgs.lima}/bin/limactl stop workshop "$@"
+          '');
+        };
       });
 }
 ```
+
+Note: these apps run on the host (macOS or Linux laptop). `flake-utils`'s
+`eachDefaultSystem` includes the Darwin systems, so `nix run .#start` works on a Mac.
 
 - [ ] **Step 2: Generate the lock and verify the dev shell evaluates in the guest**
 
@@ -387,13 +414,16 @@ provision:
 
 The `REPLACE_WITH_TEMPLATE_IMAGE_LOCATION` and the mount path are filled from real values observed in Tasks 2 and the mount point Lima actually uses (Lima mounts host paths under the same path or under `/Users/...`; confirm with `limactl shell`). Record the real mount path.
 
-- [ ] **Step 2: Boot the real guest**
+- [ ] **Step 2: Boot the real guest (via the flake app, dogfooding it)**
 
 Run:
 ```bash
-limactl start --name=workshop --tty=false ./workshop.yaml
+nix run .#start
 ```
-Expected: guest boots and the provision script runs. If the image location is wrong, Lima errors immediately; fix from the Task 2 template values.
+This wraps `limactl start ./workshop.yaml` and names the instance `workshop`. Expected:
+guest boots and the provision script runs. If the image location is wrong, Lima errors
+immediately; fix from the Task 2 template values. Then verify `nix run .#enter` opens a
+shell in the guest (`nix run .#stop` shuts it down).
 
 - [ ] **Step 3: Verify the repo is mounted and writable inside the guest**
 
@@ -550,18 +580,20 @@ Lima and the whole toolchain, comes from the flake.
    Open a new terminal afterwards, then check: `nix --version`.
    (If you already run Nix from nixos.org, that is fine too, but make sure flakes are
    enabled in your `nix.conf`: `experimental-features = nix-command flakes`.)
-2. **Clone this repo** and enter the host shell, which provides Lima:
+2. **Clone this repo:**
    ```bash
    git clone <repo-url> && cd ebpf-firewall-rs
-   nix develop .#host      # gives you limactl, no separate Lima install needed
    ```
 3. **Boot the guest once** to warm your cache (do this at home on good internet, not on
-   conference wifi):
+   conference wifi). Lima comes from the flake, so this is pure Nix:
    ```bash
-   limactl start ./workshop.yaml
+   nix run .#start      # boots the pinned Linux guest
+   nix run .#enter      # shell into it (nix run .#stop to shut it down)
    ```
 4. **Confirm it works:** follow the "Step 0" check below. If you see the hello line
    in the trace pipe, you are ready.
+
+(If you prefer raw Lima, `nix develop .#host` drops you into a shell with `limactl`.)
 
 ## The workshop, step by step
 
@@ -582,11 +614,11 @@ the ladder. If you fall behind, check out the next step's branch and rejoin.
 ## Step 0 check
 
 ```bash
-limactl shell workshop
+nix run .#enter                   # shell into the guest
 cd <repo path inside the guest>
 nix develop -c cargo build
 sudo target/debug/firewall        # leave running
-# in another shell:
+# in another shell (nix run .#enter again):
 sudo cat /sys/kernel/debug/tracing/trace_pipe   # then run any command
 ```
 You should see a `hello from eBPF` line. That means you are ready.

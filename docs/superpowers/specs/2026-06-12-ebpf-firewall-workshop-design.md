@@ -47,6 +47,10 @@ debugging sessions.
   guest itself is sourced via the `nixos-lima` flake (Lima ships no NixOS template):
   boot its prebuilt image, then apply the flake-pinned kernel config from inside the
   guest with `nixos-rebuild switch --flake .#workshop`.
+- **VM lifecycle is exposed as flake apps** (showing off Nix): `nix run .#start`,
+  `nix run .#enter`, `nix run .#stop`. The inner edit-build-run loop during the steps
+  stays as `cargo` inside `nix develop` (faster, and it keeps the eBPF workflow that
+  participants are there to learn visible rather than hidden behind Nix).
 - **All `nix` work happens inside the guest**, sidestepping the "can't build Linux
   derivations from Darwin" trap (no `linux-builder` needed on participant Macs).
 - **Homework:** participants run `limactl start` once at home to warm the guest's
