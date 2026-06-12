@@ -63,7 +63,14 @@
         apps.start = {
           type = "app";
           program = toString (pkgs.writeShellScript "start" ''
-            exec ${pkgs.lima}/bin/limactl start ./workshop.yaml "$@"
+            # Lima instances are global (~/.lima), not per-clone. If a "workshop"
+            # instance already exists, start it instead of trying to recreate it.
+            if ${pkgs.lima}/bin/limactl list -q 2>/dev/null | grep -qx workshop; then
+              ${pkgs.lima}/bin/limactl start workshop "$@" 2>/dev/null \
+                || echo "Guest 'workshop' is already running. Shell in with: nix run .#enter"
+            else
+              ${pkgs.lima}/bin/limactl start --name=workshop ./workshop.yaml "$@"
+            fi
           '');
         };
         apps.enter = {

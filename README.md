@@ -23,7 +23,7 @@ repo; everything else, including the VM runner, comes from the flake.
 2. **Clone this repo and boot the guest once** (do this at home on good internet, the
    image is a few GB). Run these from the repo directory:
    ```bash
-   git clone <repo-url> && cd ebpf-firewall-rs
+   git clone https://github.com/artogahr/ebpf-firewall-rs.git && cd ebpf-firewall-rs
    nix run .#start      # boots the pinned Linux guest (provides Lima for you)
    nix run .#enter      # opens a shell inside the guest
    ```
