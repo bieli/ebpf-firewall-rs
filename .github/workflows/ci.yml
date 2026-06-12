@@ -1,0 +1,21 @@
+name: ci
+on:
+  push:
+    branches: ["main", "step-*"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [main, step-1, step-2, step-3, step-4, step-5, step-6]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Build the workspace with the guest dev shell
+        run: nix develop .#guest --command cargo build --locked

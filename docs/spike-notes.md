@@ -178,3 +178,11 @@ verifier teaching segment. Findings on kernel 7.0.10 (modern, strong verifier):
   Plus a full register/instruction-trace dump. This is the instructor-notes verifier
   example. Teaching point: fails at LOAD (verifier), not compile; verifier guarantees
   termination; the dump is your debugging tool.
+
+## CI (Plan 3, Task 3)
+- `.github/workflows/ci.yml`: matrix over [main, step-1..step-6] on ubuntu-latest;
+  Determinate Nix installer + magic-nix-cache; `nix develop .#guest --command cargo build --locked`.
+- A Linux runner builds eBPF NATIVELY via the flake (no VM needed), unlike participant Macs.
+- Build command re-confirmed on the aarch64 guest for main. x86_64 CI runners are
+  UNVERIFIED locally (only aarch64 hardware here) but use the same flake `.#guest` output
+  (rust-overlay nightly + llvmPackages_22 bpf-linker both exist for x86_64-linux).
