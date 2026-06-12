@@ -80,8 +80,8 @@ through the kernel's built-in trace pipe. Press Ctrl-C to stop the loader.
 
 If you are presenting this to many people at once, a few GB per person over shared wifi
 will hurt. Have everyone do the boot step above as homework, and optionally run a local
-Nix binary cache on your laptop so the room pulls over the LAN. See the instructor notes
-for details.
+Nix binary cache on your laptop so the room pulls over the LAN. See
+[`docs/instructor-notes.md`](docs/instructor-notes.md) for details.
 
 ## License
 

@@ -186,3 +186,11 @@ verifier teaching segment. Findings on kernel 7.0.10 (modern, strong verifier):
 - Build command re-confirmed on the aarch64 guest for main. x86_64 CI runners are
   UNVERIFIED locally (only aarch64 hardware here) but use the same flake `.#guest` output
   (rust-overlay nightly + llvmPackages_22 bpf-linker both exist for x86_64-linux).
+
+## PLAN 3 COMPLETE
+- Verifier example verified (infinite loop -> EINVAL at load). Instructor notes written
+  at docs/instructor-notes.md with agenda, per-step talking points, the block-by-PID demo,
+  the verifier example, LAN-cache (nix-serve), and troubleshooting.
+- CI (.github/workflows/ci.yml) on main and all step branches: builds each branch with
+  `nix develop .#guest`. solution tag -> step-6. README links instructor notes.
+- All three plans (foundation, step ladder, docs+CI) complete and verified.
