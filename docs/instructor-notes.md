@@ -46,15 +46,124 @@ by adding the TC packet-drop stretch (see the design spec).
 
 ## How to live-code each step
 
-You start each step on the previous branch and type only the small diff. If you fall
-behind or a demo breaks, `git switch step-N` to jump to a known-good checkpoint. The
-hand-typed delta per step is only a few lines; everything else is already there. Build
-and run from inside the guest:
+You start each step on the previous branch and type only the small diff (see the
+"Live-coding cheat" below for the exact lines). If you fall behind or a demo breaks,
+`git switch step-N` jumps to a known-good checkpoint. Enter the dev shell once, then the
+commands are short and Nix-native:
 
 ```bash
-nix run .#enter                                  # shell into the guest (from repo dir)
-nix develop -c cargo build --locked              # build
-nix develop -c bash -c 'cargo run --locked'      # load (auto-sudo via .cargo/config)
+nix run .#enter        # shell into the guest (from the repo dir)
+nix develop            # enter the dev shell once: cargo + toolchain on PATH
+cargo build            # build
+cargo run -- 1234      # load (auto-sudo via .cargo/config); 1234 = PID to block
+```
+
+Keep a second `nix run .#enter` shell open for `sudo cat /sys/kernel/tracing/trace_pipe`.
+
+## Live-coding cheat: the exact delta per step
+
+The full source of each step is on its branch (`git show step-N:firewall-ebpf/src/main.rs`).
+Below is just what you TYPE to get from the previous step to this one. eBPF file is
+`firewall-ebpf/src/main.rs`; loader is `firewall/src/main.rs`.
+
+**Step 1 (from Step 0): switch tracepoint -> connect4.** Biggest change; consider pasting
+the loader. Loader becomes:
+```rust
+use std::fs::File;
+use aya::programs::{CgroupAttachMode, CgroupSockAddr};
+use tokio::signal;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let mut ebpf = aya::Ebpf::load(aya::include_bytes_aligned!(concat!(
+        env!("OUT_DIR"), "/firewall")))?;
+    let cgroup = File::open("/sys/fs/cgroup")?;
+    let program: &mut CgroupSockAddr = ebpf.program_mut("connect4").unwrap().try_into()?;
+    program.load()?;
+    program.attach(&cgroup, CgroupAttachMode::Single)?;
+    println!("firewall attached. Press Ctrl-C to exit.");
+    signal::ctrl_c().await?;
+    Ok(())
+}
+```
+eBPF becomes (the part you type live):
+```rust
+use aya_ebpf::{helpers::bpf_printk, macros::cgroup_sock_addr, programs::SockAddrContext};
+
+#[cgroup_sock_addr(connect4)]
+pub fn connect4(_ctx: SockAddrContext) -> i32 {
+    unsafe { bpf_printk!(c"connect4: a process is connecting") };
+    1 // 1 = allow, 0 = deny
+}
+```
+
+**Step 2 (eBPF only): add the PID.** Add `bpf_get_current_pid_tgid` to the helpers import,
+then:
+```rust
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    unsafe { bpf_printk!(c"connect4: pid %d is connecting", pid) };
+```
+
+**Step 3 (eBPF only): add the destination.** Rename `_ctx` to `ctx`, then:
+```rust
+    let sa = unsafe { &*ctx.sock_addr };
+    let dest_ip = u32::from_be(sa.user_ip4);
+    let dest_port = u16::from_be(sa.user_port as u16);
+    unsafe { bpf_printk!(c"connect4: pid %d -> ip %x port %d", pid, dest_ip, dest_port as u32) };
+```
+
+**Step 4: add the map (eBPF) and seed it (loader).** eBPF: add `macros::map` and
+`maps::HashMap` to imports, then the map and a lookup:
+```rust
+#[map]
+static BLOCKLIST: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
+// inside connect4, replace the printk with:
+    if unsafe { BLOCKLIST.get(&pid) }.is_some() {
+        unsafe { bpf_printk!(c"connect4: pid %d is on the blocklist (allowing for now)", pid) };
+    }
+```
+Loader: add `use aya::maps::HashMap;` and, before the attach, seed from argv:
+```rust
+    let mut blocklist: HashMap<_, u32, u8> =
+        HashMap::try_from(ebpf.map_mut("BLOCKLIST").unwrap())?;
+    for arg in std::env::args().skip(1) {
+        let pid: u32 = arg.parse()?;
+        blocklist.insert(pid, 0, 0)?;
+        println!("blocking PID {pid}");
+    }
+```
+
+**Step 5 (eBPF only): the kill switch.** One line. In the `if` block, change the message
+and add the deny:
+```rust
+    if unsafe { BLOCKLIST.get(&pid) }.is_some() {
+        unsafe { bpf_printk!(c"connect4: BLOCKING pid %d", pid) };
+        return 0; // deny
+    }
+```
+
+**Step 6: IPv6.** eBPF: pull the body into a shared `decide()` and add a second hook:
+```rust
+fn decide() -> i32 {
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if unsafe { BLOCKLIST.get(&pid) }.is_some() {
+        unsafe { bpf_printk!(c"connect: BLOCKING pid %d", pid) };
+        return 0;
+    }
+    1
+}
+
+#[cgroup_sock_addr(connect4)]
+pub fn connect4(_ctx: SockAddrContext) -> i32 { decide() }
+
+#[cgroup_sock_addr(connect6)]
+pub fn connect6(_ctx: SockAddrContext) -> i32 { decide() }
+```
+Loader: after the connect4 attach, add the connect6 attach:
+```rust
+    let program6: &mut CgroupSockAddr = ebpf.program_mut("connect6").unwrap().try_into()?;
+    program6.load()?;
+    program6.attach(&cgroup, CgroupAttachMode::Single)?;
 ```
 
 ## The demo that works: block a shell's own PID
@@ -76,9 +185,11 @@ Back in the first shell, `: <>/dev/tcp/1.1.1.1/80` now fails with
 
 ## Per-step talking points
 
-- **Step 0 (hello):** two ways to see kernel output. aya-log routes through your own
-  loader (a perf buffer, a preview of maps). `bpf_printk` writes to the kernel's global
-  trace pipe (`sudo cat /sys/kernel/tracing/trace_pipe`). Same program, two windows.
+- **Step 0 (hello):** `bpf_printk` writes to the kernel's global trace pipe
+  (`sudo cat /sys/kernel/tracing/trace_pipe`); every command fires it via the `execve`
+  syscall. (Aside: there is also a nicer library logger, `aya-log`, that routes lines to
+  your own app instead of the global pipe; we use the trace pipe throughout for one
+  simple, consistent mechanism.)
 - **Step 1 (catch the hook):** `cgroup/connect4` runs inside the `connect()` syscall for
   every process in the cgroup. Returning 1 allows, 0 denies. We attach to the root
   cgroup so it sees everything.
