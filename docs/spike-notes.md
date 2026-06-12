@@ -92,5 +92,34 @@ grounded in reality rather than guesses. Append findings under each task.
   on every execve. FULL STACK PROVEN on Apple Silicon.
 - LOGGING MECHANISM: aya-template scaffold uses **aya-log** (logs surface in the
   loader's stdout via `RUST_LOG`, through a perf/ringbuf map), NOT the kernel
-  `bpf_printk` -> `/sys/kernel/tracing/trace_pipe`. Step 0 framing decision pending
-  with user (aya-log vs trace_pipe).
+  `bpf_printk` -> `/sys/kernel/tracing/trace_pipe`. DECISION (user): show BOTH in
+  Step 0. Both proven: aya-log -> `[INFO firewall] execve called`; bpf_printk ->
+  `bpf_trace_printk: hello from eBPF: execve called` in /sys/kernel/tracing/trace_pipe.
+  `bpf_printk!` macro exists in aya-ebpf 0.1.2 (helpers.rs), takes a `c"..."` literal.
+
+### Task 7/9/10: workshop.yaml + README + finalize (DONE)
+- DECISION (user): accept stock nixos-lima v0.2 kernel; SKIP Task 6 (flake kernel pin).
+  Reproducibility comes from pinning the image URL + sha512 digest in workshop.yaml.
+- workshop.yaml: both-arch nixos-lima v0.2 images (digests from ~/.lima/nixos/lima.yaml),
+  `~` mounted WRITABLE (so cargo writes target/ in place, portable to any clone path),
+  /tmp/lima writable, memory 8GiB, UDP-68 ignore port-forward (nixos-lima quirk),
+  containerd off, vmType unset (Mac=vz, Linux=qemu).
+- `nix run .#start` booted instance "workshop" from cached image (no re-download).
+  `nix run .#enter` shells in (mirrors host cwd). Confirmed WRITABLE_OK + in-place
+  `cargo build --locked` on the fresh instance (cold build ~46s after toolchain fetch).
+- RUN COMMAND (proven): `nix develop -c bash -c 'RUST_LOG=info cargo run'`. The
+  `.cargo/config.toml` `runner = "sudo -E"` auto-elevates, no manual sudo needed.
+- DECISION (user): hand-written code must be MINIMAL (live coding). Step 0 program
+  trimmed (dropped scaffold `match try_x()` wrapper). Principle recorded in spec;
+  drives Plan 2 (pre-stage boilerplate, tiny per-step live diffs).
+- LICENSE-NOTE: aya-template ships dual MIT/Apache (+ GPL2 for eBPF). README keeps it.
+
+## FOUNDATION COMPLETE
+Proven stack for Plans 2 and 3 to build on:
+- Guest: nixos-lima v0.2 aarch64 qcow2, NixOS 26.05, kernel 7.0.10, BTF + cgroup2.
+- Boot: `nix run .#start` (workshop.yaml, instance "workshop"). Enter: `nix run .#enter`.
+- Toolchain (flake .#guest): rustc 1.98.0-nightly (LLVM 22) + rust-src;
+  bpf-linker 0.10.3 overridden to llvmPackages_22; clang 22; pkg-config.
+- Deps: aya 0.13.2 (git a0b8d49), edition 2024, Cargo.lock committed, build `--locked`.
+- Build: `nix develop -c cargo build --locked`; run: `RUST_LOG=info cargo run`.
+- Step 0 (main): tracepoint sys_enter_execve, aya-log + bpf_printk, both verified.

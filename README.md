@@ -1,55 +1,101 @@
-# firewall
+# Accessing the Linux Kernel with eBPF and Rust
 
-## Prerequisites
+Welcome! In this workshop you build a small firewall that lives inside the Linux
+kernel and decides, per process, whether a program is allowed to open network
+connections. You write it in Rust on both sides: the kernel program and the
+userspace app that controls it.
 
-1. stable rust toolchains: `rustup toolchain install stable`
-1. nightly rust toolchains: `rustup toolchain install nightly --component rust-src`
-1. (if cross-compiling) rustup target: `rustup target add ${ARCH}-unknown-linux-musl`
-1. (if cross-compiling) LLVM: (e.g.) `brew install llvm` (on macOS)
-1. bpf-linker: `cargo install bpf-linker` (`--no-default-features` on macOS)
+## Why a VM?
 
-## Build & Run
+eBPF only exists in the Linux kernel. macOS has no eBPF, so everyone (Mac and Linux
+alike) runs the same Linux guest. The image is pinned, so the kernel and its verifier
+behave identically for all of us. The only tools you install by hand are Nix and this
+repo; everything else, including the VM runner, comes from the flake.
 
-Use `cargo build`, `cargo check`, etc. as normal. Run your program with:
+## Setup (please do this before the workshop)
 
-```shell
-cargo run --release
+1. **Install Nix** with the Determinate installer (it enables flakes by default):
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+   ```
+   Open a new terminal, then check: `nix --version`.
+
+2. **Clone this repo and boot the guest once** (do this at home on good internet, the
+   image is a few GB). Run these from the repo directory:
+   ```bash
+   git clone <repo-url> && cd ebpf-firewall-rs
+   nix run .#start      # boots the pinned Linux guest (provides Lima for you)
+   nix run .#enter      # opens a shell inside the guest
+   ```
+   `nix run .#stop` shuts the guest down later.
+
+3. **Confirm it works** with the Step 0 check below. If you see the hello line, you are
+   ready.
+
+## The workshop, step by step
+
+Each step is a git branch. You are on `main` now, which is Step 0. Move up the ladder
+one branch at a time; if you fall behind, check out the next step's branch and rejoin.
+
+- [x] **Step 0 (`main`, you are here): Hello eBPF.** Load a program and watch it react
+  to the kernel. Proves your toolchain works.
+- [ ] **Step 1 (`step-1`): Catch the hook.** Attach to `cgroup/connect4` and log every
+  connection attempt.
+- [ ] **Step 2 (`step-2`): Read the PID** of the process making the connection.
+- [ ] **Step 3 (`step-3`): Read the destination** IP and port.
+- [ ] **Step 4 (`step-4`): Share state with a map.** Userspace pushes a PID onto a
+  blocklist; the kernel logs when a blocked PID connects (no blocking yet).
+- [ ] **Step 5 (`step-5`): The kill switch.** Deny connections from blocked PIDs.
+- [ ] **Step 6 / `solution`: IPv6 and polish.**
+
+## Step 0 check
+
+Open the guest from the repo directory (the shell lands in the same directory inside
+the guest):
+
+```bash
+nix run .#enter
+nix develop -c bash -c 'RUST_LOG=info cargo run'   # builds, then loads the program
 ```
 
-Cargo build scripts are used to automatically build the eBPF correctly and include it in the
-program.
+Run any command in another terminal (`nix run .#enter` again, then e.g. `ls`). In the
+loader's output you will see, via aya-log:
 
-## Cross-compiling on macOS
-
-Cross compilation should work on both Intel and Apple Silicon Macs.
-
-```shell
-cargo build --package firewall --release \
-  --target=${ARCH}-unknown-linux-musl \
-  --config=target.${ARCH}-unknown-linux-musl.linker=\"rust-lld\"
 ```
-The cross-compiled program `target/${ARCH}-unknown-linux-musl/release/firewall` can be
-copied to a Linux server or VM and run there.
+[INFO  firewall] execve called
+```
+
+The same program also calls `bpf_printk`, the classic kernel logging primitive. To see
+that, watch the kernel trace pipe in a second guest shell while running commands:
+
+```bash
+sudo cat /sys/kernel/tracing/trace_pipe
+# ...   bpf_trace_printk: hello from eBPF: execve called
+```
+
+Two windows onto the same kernel program: one through your own app (aya-log), one
+through the kernel's built-in trace pipe. Press Ctrl-C to stop the loader.
+
+## Running this for a crowd?
+
+If you are presenting this to many people at once, a few GB per person over shared wifi
+will hurt. Have everyone do the boot step above as homework, and optionally run a local
+Nix binary cache on your laptop so the room pulls over the LAN. See the instructor notes
+for details.
 
 ## License
 
-With the exception of eBPF code, firewall is distributed under the terms
-of either the [MIT license] or the [Apache License] (version 2.0), at your
-option.
+With the exception of eBPF code, this project is distributed under the terms of either
+the [MIT license] or the [Apache License] (version 2.0), at your option.
 
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this crate by you, as defined in the Apache-2.0 license, shall
-be dual licensed as above, without any additional terms or conditions.
+Unless you explicitly state otherwise, any contribution intentionally submitted for
+inclusion in this crate by you, as defined in the Apache-2.0 license, shall be dual
+licensed as above, without any additional terms or conditions.
 
 ### eBPF
 
 All eBPF code is distributed under either the terms of the
-[GNU General Public License, Version 2] or the [MIT license], at your
-option.
-
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this project by you, as defined in the GPL-2 license, shall be
-dual licensed as above, without any additional terms or conditions.
+[GNU General Public License, Version 2] or the [MIT license], at your option.
 
 [Apache license]: LICENSE-APACHE
 [MIT license]: LICENSE-MIT
