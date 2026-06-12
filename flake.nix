@@ -20,7 +20,11 @@
         # once flake.lock pins rust-overlay.
         rustNightly = pkgs.rust-bin.selectLatestNightlyWith (toolchain:
           toolchain.default.override {
-            extensions = [ "rust-src" "rustfmt" "clippy" ];
+            # rust-analyzer is bundled so editors connected to the guest (e.g. VS Code
+            # Remote-SSH) get autocomplete and type-checking. Host-native analysis is
+            # impossible here: aya (userspace) is Linux-only and the eBPF crate targets
+            # bpfel, so neither crate can `cargo check` on macOS.
+            extensions = [ "rust-src" "rustfmt" "clippy" "rust-analyzer" ];
           });
 
         # bpf-linker reads the LLVM bitcode that rustc emits, so it MUST be built
