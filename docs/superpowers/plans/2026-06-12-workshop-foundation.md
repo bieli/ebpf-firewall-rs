@@ -171,17 +171,25 @@ git add docs/spike-notes.md && git commit -m "spike: record eBPF prerequisites i
 
 The scaffold needs `cargo` + `cargo-generate`, which we do not have on the host. Use a throwaway Nix shell to generate it, then we wrap it with our own flake in Task 5.
 
-- [ ] **Step 1: Generate the project into a temp dir**
+- [ ] **Step 1: Generate the project into a temp dir (non-interactive)**
 
-Run:
+The aya-template offers no `connect4`/`cgroup_sock_addr` type, so we scaffold a
+`tracepoint` for Step 0's hello-world (fires on `sys_enter_execve`) and hand-write the
+cgroup/connect4 hook in Plan 2. Pass all placeholders via `--define` with `--silent` so
+there are no prompts:
+
 ```bash
-nix shell nixpkgs#cargo-generate nixpkgs#cargo -c \
+rm -rf /tmp/fw-gen && nix shell nixpkgs#cargo-generate nixpkgs#cargo nixpkgs#git -c \
   cargo generate --git https://github.com/aya-rs/aya-template \
-  --name firewall --destination /tmp/fw-gen --init false
+  --name firewall --destination /tmp/fw-gen --silent \
+  -d program_type=tracepoint \
+  -d tracepoint_category=syscalls \
+  -d tracepoint_name=sys_enter_execve
 ```
-This is interactive: when prompted for the program type, choose a `cgroup_sockopt`/`cgroup_skb`/`cgroup_sock_addr` option if offered; otherwise pick any simple type (we replace the program body in Task 7 anyway). Record which program type the template offered and which was chosen.
 
-Expected: a generated workspace at `/tmp/fw-gen/firewall` with `firewall/`, `firewall-ebpf/`, `firewall-common/`, `Cargo.toml`, `rust-toolchain.toml`.
+Expected: a generated workspace at `/tmp/fw-gen/firewall` with `firewall/`,
+`firewall-ebpf/`, `firewall-common/`, `Cargo.toml`, `rust-toolchain.toml`. If `--silent`
+still errors on a missing required placeholder, add it as another `-d` and record it.
 
 - [ ] **Step 2: Move the generated files into the repo root**
 

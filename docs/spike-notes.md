@@ -43,3 +43,25 @@ grounded in reality rather than guesses. Append findings under each task.
   - Passwordless `sudo` works in the guest (`sudo whoami` -> root).
 - NOTE: spike instance is `nixos`; the real workshop.yaml (Task 7) will name it
   `workshop`. The flake apps target `workshop`.
+
+### Task 4: aya-template scaffold (DONE)
+- cargo-generate 0.23.9. Generated non-interactively with:
+  `-d program_type=tracepoint -d tracepoint_category=syscalls -d tracepoint_name=sys_enter_execve`
+  plus `--silent`. `--destination` dir must already exist (mkdir first).
+- Template offers NO `cgroup_sock_addr`/`connect4` type (choices: cgroup_skb,
+  cgroup_sockopt, cgroup_sysctl, classifier, fentry, fexit, kprobe, kretprobe, lsm,
+  perf_event, raw_tracepoint, sk_msg, sock_ops, socket_filter, tp_btf, tracepoint,
+  uprobe, uretprobe, xdp). So Step 0 = tracepoint hello-world; connect4 hook is
+  hand-written in Plan 2.
+- Modern aya build (KEY for the flake):
+  - aya deps come from GIT (github.com/aya-rs/aya), not crates.io. Lock pins a git rev;
+    warm-up fetches from GitHub. edition = "2024".
+  - NO `rust-toolchain.toml` generated. The build is "cargo-in-cargo":
+    `firewall/build.rs` calls `aya_build::build_ebpf([...], Toolchain::default())`,
+    which compiles the ebpf crate (needs `-Z build-std`, i.e. NIGHTLY + rust-src).
+  - `firewall-ebpf/build.rs` requires `bpf-linker` on PATH (`which("bpf-linker")`).
+  - `.cargo/config.toml`: `runner = "sudo -E"` so `cargo run` runs the loader as root.
+  - OPEN RISK: aya-build's `Toolchain::default()` may shell out to `cargo +nightly`
+    (rustup-style), which does not exist in a Nix shell. Must verify during the first
+    in-guest build (Task 8) and, if so, provide nightly as the default toolchain or
+    point aya-build at it explicitly.
