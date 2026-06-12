@@ -198,7 +198,7 @@ Back in the first shell, `: <>/dev/tcp/1.1.1.1/80` now fails with
   loses when moving packets.
 - **Step 3 (destination):** the target is in the program context (`bpf_sock_addr`).
   `user_ip4` and `user_port` are network byte order, hence `from_be`. Good moment to show
-  decoding `1010101` hex back to `1.1.1.1`, and port `80`.
+  decoding `1010101` hex back to `1.1.1.1`, and port `50` hex back to `80`.
 - **Step 4 (maps, log before enforce):** a `HashMap` is shared memory between your app
   and the kernel. The loader writes PIDs; the kernel reads them. We deliberately only LOG
   here, proving the two sides talk before we let the kernel block anything.
