@@ -51,30 +51,24 @@ one branch at a time; if you fall behind, check out the next step's branch and r
 ## Step 0 check
 
 Open the guest from the repo directory (the shell lands in the same directory inside
-the guest):
+the guest), and enter the dev shell once so `cargo` and the toolchain are on PATH:
 
 ```bash
-nix run .#enter
-nix develop -c bash -c 'RUST_LOG=info cargo run'   # builds, then loads the program
+nix run .#enter      # shell into the guest
+nix develop          # enter the dev shell (cargo, the eBPF toolchain, etc.)
+cargo run            # builds the program and loads it into the kernel
 ```
 
-Run any command in another terminal (`nix run .#enter` again, then e.g. `ls`). In the
-loader's output you will see, via aya-log:
-
-```
-[INFO  firewall] execve called
-```
-
-The same program also calls `bpf_printk`, the classic kernel logging primitive. To see
-that, watch the kernel trace pipe in a second guest shell while running commands:
+In a second terminal (`nix run .#enter` again), watch the kernel trace pipe while you
+run any command:
 
 ```bash
 sudo cat /sys/kernel/tracing/trace_pipe
-# ...   bpf_trace_printk: hello from eBPF: execve called
+# ...   bpf_trace_printk: hello from eBPF: a process called execve
 ```
 
-Two windows onto the same kernel program: one through your own app (aya-log), one
-through the kernel's built-in trace pipe. Press Ctrl-C to stop the loader.
+Every command you run triggers a line, because the program fires on the `execve`
+syscall. Seeing it means your whole toolchain works. Press Ctrl-C to stop the loader.
 
 ## Running this for a crowd?
 
