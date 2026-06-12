@@ -16,7 +16,9 @@ jobs:
         with:
           ref: ${{ matrix.branch }}
       - uses: DeterminateSystems/nix-installer-action@main
-      - uses: DeterminateSystems/magic-nix-cache-action@main
+      # Note: magic-nix-cache was removed; it is deprecated and returns HTTP 418, which
+      # intermittently breaks substitution and fails the build. We pull from
+      # cache.nixos.org instead (no cross-run caching, but reliable).
       - name: Build the workspace with the guest dev shell
         run: |
           # aya-build prefers a rustup-managed nightly when `rustup` is on PATH.
