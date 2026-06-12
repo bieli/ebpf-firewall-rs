@@ -28,3 +28,18 @@ grounded in reality rather than guesses. Append findings under each task.
 - Chosen bootstrap: boot the prebuilt image first (Linux-build-free), then apply our
   pinned-kernel config from INSIDE the guest via `nixos-rebuild switch --flake .#workshop`
   (builds natively on Linux). Avoids the Darwin-can't-build-Linux trap.
+
+### Task 2/3: guest booted + eBPF prereqs (PROVEN)
+- Image: `nixos-lima-v0.2-aarch64.qcow2` from nixos-lima v0.2 GitHub release. Instance
+  name `nixos` (spike). Boot via `limactl start --memory 8 --tty=false github:nixos-lima`.
+- Image download ~9 min at ~2 MB/s (07:38 -> 07:47). VMType vz, 4 CPU, 8 GiB, 100 GiB.
+- Guest: NixOS 26.05 (Yarara), kernel **7.0.10** aarch64.
+- eBPF prereqs ALL satisfied:
+  - BTF: `/sys/kernel/btf/vmlinux` present (8.6 MB).
+  - cgroup v2: `/sys/fs/cgroup` is `cgroup2fs` (needed for cgroup/connect4 hook).
+  - bpf fs: mounted at `/sys/fs/bpf` (mode 700, root-only).
+  - tracefs at `/sys/kernel/tracing`, debugfs at `/sys/kernel/debug`. Trace pipe:
+    **`/sys/kernel/tracing/trace_pipe`** (root-only, mode 640). Read with sudo.
+  - Passwordless `sudo` works in the guest (`sudo whoami` -> root).
+- NOTE: spike instance is `nixos`; the real workshop.yaml (Task 7) will name it
+  `workshop`. The flake apps target `workshop`.
