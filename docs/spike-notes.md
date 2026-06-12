@@ -123,3 +123,31 @@ Proven stack for Plans 2 and 3 to build on:
 - Deps: aya 0.13.2 (git a0b8d49), edition 2024, Cargo.lock committed, build `--locked`.
 - Build: `nix develop -c cargo build --locked`; run: `RUST_LOG=info cargo run`.
 - Step 0 (main): tracepoint sys_enter_execve, aya-log + bpf_printk, both verified.
+
+## STEP LADDER COMPLETE (Plan 2)
+All branches step-1..step-6 created, behavior-verified live, and built clean.
+`solution` tag = step-6. Tags: step-0, solution. Logging for steps 1-3 via bpf_printk
+-> trace_pipe (user decision); aya-log stays the Step 0 showcase.
+
+Per-step verification (on instance `workshop`, kernel 7.0.10):
+- step-1: connect4 hook fires on every connect (sh + curl logged). curl allowed.
+- step-2: PID logged via `bpf_get_current_pid_tgid() >> 32` (curl child PID seen).
+- step-3: dest read from `&*ctx.sock_addr`; `user_ip4`/`user_port` are big-endian
+  (`u32::from_be` / `u16::from_be`). Saw `ip 1010101 port 80` for 1.1.1.1:80.
+  NOTE: the anticipated verifier moment did NOT bite. The context-pointer deref loads
+  cleanly; no verifier objection on kernel 7.0.10. (Plan 3 verifier segment may need a
+  deliberately-wrong example to provoke the verifier.)
+- step-4: BLOCKLIST HashMap<u32,u8>; loader seeds from argv. Blocked PID LOGGED but
+  still connects (ok) -> log-before-enforce hinge proven.
+- step-5: `return 0` denies. Blocked PID's connect fails with EPERM
+  ("Operation not permitted"). trace shows BLOCKING. Non-blocked PIDs unaffected.
+- step-6: connect6 hook shares blocklist via `decide()`. Loader attaches both. The
+  cgroup/connect6 hook fires BEFORE routing: with no IPv6 route in the guest, blocking
+  changes the v6 error from ENETUNREACH ("Network is unreachable") to EPERM
+  ("Operation not permitted"), proving the hook denies. 42 BLOCKING lines observed.
+
+DEMO TECHNIQUE (important for the talk): block a process by a STABLE, KNOWN PID. A
+`curl` spawns a child with a fresh PID each run, so you can't pre-block it. Instead use
+the shell's own PID: `: <>/dev/tcp/HOST/PORT` runs connect() in the current shell
+process (PID = `echo $$`). So the demo is "this shell's PID is N; block N; now THIS
+shell cannot open connections". Used a detached bash loop hitting /dev/tcp for testing.
