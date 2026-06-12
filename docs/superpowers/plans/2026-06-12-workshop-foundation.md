@@ -511,11 +511,24 @@ the kernel verifier behaves identically for all of us.
 
 ## Setup (do this before the workshop)
 
-1. Install Nix: https://nixos.org (Determinate installer recommended).
-2. Install Lima: `nix profile install nixpkgs#lima`
-3. Clone this repo and boot the guest once to warm your cache:
+You need two things on your host: Nix and Lima. Everything else lives inside the
+guest.
+
+1. **Install Nix (Determinate installer, recommended).** It is the most reliable
+   option for this workshop because it turns on flakes by default (we use flakes
+   everywhere) and ships a clean uninstaller. Works on Apple Silicon and Intel Macs
+   and on Linux:
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+   ```
+   Open a new terminal afterwards, then check: `nix --version`.
+   (If you already run Nix from nixos.org, that is fine too, but make sure flakes are
+   enabled in your `nix.conf`: `experimental-features = nix-command flakes`.)
+2. **Install Lima:** `nix profile install nixpkgs#lima` then check `limactl --version`.
+3. **Clone this repo and boot the guest once** to warm your cache (do this at home on
+   good internet, not on conference wifi):
    `limactl start --name=workshop ./workshop.yaml`
-4. Confirm it works: follow the "Step 0" check below. If you see the hello line
+4. **Confirm it works:** follow the "Step 0" check below. If you see the hello line
    in the trace pipe, you are ready.
 
 ## The workshop, step by step
