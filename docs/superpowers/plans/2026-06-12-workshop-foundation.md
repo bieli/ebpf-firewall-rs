@@ -62,9 +62,14 @@ git commit -m "docs: start foundation spike notes"
 
 ---
 
-## Task 1: Install Lima on the host
+## Task 1: Install Lima on the host (spike bootstrap only)
 
 **Files:** none (host tooling).
+
+Note: this imperative install is only to bootstrap the spike quickly. Participants do
+NOT install Lima this way; the flake's `.#host` dev shell provides it (Task 5), so the
+real flow is "install Nix, clone, `nix develop .#host`". Keep this task for the spike,
+but the participant-facing path is the host dev shell.
 
 - [ ] **Step 1: Install Lima via Nix**
 
@@ -205,7 +210,13 @@ git commit -m "feat: scaffold Aya workspace from aya-template"
 - Create: `flake.nix`
 - Create: `flake.lock` (generated)
 
-- [ ] **Step 1: Write `flake.nix` with a dev shell**
+- [ ] **Step 1: Write `flake.nix` with host and guest dev shells**
+
+The flake provides Lima itself (host shell) so participants never install it
+imperatively. Two shells: `.#host` for the laptop (just Lima, to boot the guest) and
+the default shell for inside the guest (the Rust/Aya toolchain). Host can be macOS or
+Linux, and the guest is Linux, so we split by name rather than by OS (a Linux laptop is
+still a host and needs Lima).
 
 Create `flake.nix`:
 
@@ -217,9 +228,10 @@ Create `flake.nix`:
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
+    nixos-lima.url = "github:nixos-lima/nixos-lima";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils, nixos-lima }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -230,8 +242,16 @@ Create `flake.nix`:
           extensions = [ "rust-src" ];
           targets = [ "bpfel-unknown-none" ];
         };
-      in {
-        devShells.default = pkgs.mkShell {
+        # Host shell (laptop, macOS or Linux): the tools to launch the guest.
+        hostShell = pkgs.mkShell {
+          packages = [ pkgs.lima ];
+          shellHook = ''
+            echo "Host shell ready. Boot the workshop guest with:"
+            echo "  limactl start ./workshop.yaml"
+          '';
+        };
+        # Guest shell (inside the Linux VM): the eBPF/Rust toolchain.
+        guestShell = pkgs.mkShell {
           packages = [
             rustNightly
             pkgs.bpf-linker
@@ -240,6 +260,12 @@ Create `flake.nix`:
             pkgs.pkg-config
           ];
         };
+      in {
+        # Default = guest toolchain (typed most often, inside the VM).
+        # `.#host` = the one-time laptop bootstrap that provides Lima.
+        devShells.default = guestShell;
+        devShells.host = hostShell;
+        devShells.guest = guestShell;
       });
 }
 ```
@@ -511,8 +537,8 @@ the kernel verifier behaves identically for all of us.
 
 ## Setup (do this before the workshop)
 
-You need two things on your host: Nix and Lima. Everything else lives inside the
-guest.
+The only things you install by hand are Nix and this repo. Everything else, including
+Lima and the whole toolchain, comes from the flake.
 
 1. **Install Nix (Determinate installer, recommended).** It is the most reliable
    option for this workshop because it turns on flakes by default (we use flakes
@@ -524,10 +550,16 @@ guest.
    Open a new terminal afterwards, then check: `nix --version`.
    (If you already run Nix from nixos.org, that is fine too, but make sure flakes are
    enabled in your `nix.conf`: `experimental-features = nix-command flakes`.)
-2. **Install Lima:** `nix profile install nixpkgs#lima` then check `limactl --version`.
-3. **Clone this repo and boot the guest once** to warm your cache (do this at home on
-   good internet, not on conference wifi):
-   `limactl start --name=workshop ./workshop.yaml`
+2. **Clone this repo** and enter the host shell, which provides Lima:
+   ```bash
+   git clone <repo-url> && cd ebpf-firewall-rs
+   nix develop .#host      # gives you limactl, no separate Lima install needed
+   ```
+3. **Boot the guest once** to warm your cache (do this at home on good internet, not on
+   conference wifi):
+   ```bash
+   limactl start ./workshop.yaml
+   ```
 4. **Confirm it works:** follow the "Step 0" check below. If you see the hello line
    in the trace pipe, you are ready.
 

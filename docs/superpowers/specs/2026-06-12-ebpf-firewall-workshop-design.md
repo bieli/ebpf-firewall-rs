@@ -39,6 +39,14 @@ debugging sessions.
   `workshop.yaml` Lima config runs on both macOS and Linux hosts and auto-selects
   `aarch64-linux` / `x86_64-linux`. The guest is **NixOS with the kernel pinned in
   the flake** (BTF enabled, cgroup v2, eBPF-relevant kernel config).
+- **The flake provides Lima itself**, so participants never install it imperatively.
+  The flake has two dev shells: `.#host` (runs on the laptop, provides `limactl` to
+  boot the guest) and the default shell (runs inside the guest, provides the Rust/Aya
+  toolchain). The only manual host steps are installing Nix and cloning the repo; the
+  flow is then `nix develop .#host` then `limactl start ./workshop.yaml`. The NixOS
+  guest itself is sourced via the `nixos-lima` flake (Lima ships no NixOS template):
+  boot its prebuilt image, then apply the flake-pinned kernel config from inside the
+  guest with `nixos-rebuild switch --flake .#workshop`.
 - **All `nix` work happens inside the guest**, sidestepping the "can't build Linux
   derivations from Darwin" trap (no `linux-builder` needed on participant Macs).
 - **Homework:** participants run `limactl start` once at home to warm the guest's
