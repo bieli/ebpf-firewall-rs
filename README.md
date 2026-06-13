@@ -14,6 +14,8 @@ repo; everything else, including the VM runner, comes from the flake.
 
 ## Setup (please do this before the workshop)
 
+Tip: You need to have free disk space more than 6GB.
+
 1. **Install Nix** with the Determinate installer (it enables flakes by default):
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
@@ -25,6 +27,8 @@ repo; everything else, including the VM runner, comes from the flake.
    ```bash
    git clone https://github.com/artogahr/ebpf-firewall-rs.git && cd ebpf-firewall-rs
    nix develop          # host toolchain; launch your editor from here for autocomplete
+   # for Linux users without enabled experimental features, you need to use below command
+   # nix --extra-experimental-features "nix-command flakes" develop
    nix run .#start      # boots the pinned Linux guest (provides Lima for you)
    nix run .#enter      # opens a shell inside the guest
    ```
